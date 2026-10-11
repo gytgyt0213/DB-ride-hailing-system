@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}评价管理 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">评价与服务分</h2>
+
+<div class="grid grid-4" style="margin-bottom:18px;">
+    <div class="stat">
+        <div class="stat-label">评价总数</div>
+        <div class="stat-value primary">{{ summary.total or 0 }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">平均分</div>
+        <div class="stat-value warning">{{ summary.avg_score or '-' }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">好评（4-5 分）</div>
+        <div class="stat-value success">{{ summary.good or 0 }}</div>
+        <div class="stat-hint">
+            占比 {{ ((summary.good or 0) * 100 / (summary.total or 1)) | round(1) }}%
+        </div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">差评（1-2 分）</div>
+        <div class="stat-value danger">{{ summary.bad or 0 }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">
+        司机服务分
+        <span class="sub">含触发器一致性校验</span>
+    </h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>司机</th><th>区域</th>
+                <th class="num">触发器维护分</th><th class="num">实时聚合分</th>
+                <th class="num">维护评价数</th><th class="num">实际评价数</th>
+                <th class="num">好评</th><th class="num">差评</th>
+                <th>一致性</th></tr>
+            </thead>
+            <tbody>
+            {% for s in scores %}
+                {% set consistent = (s.stored_count == s.actual_count)
+                    and ((s.stored_score - s.actual_avg_score) | abs < 0.011) %}
+                <tr>
+                    <td>{{ s.real_name }} <span class="muted mono">#{{ s.driver_id }}</span></td>
+                    <td>{{ s.region }}</td>
+                    <td class="num">{{ s.stored_score }}</td>
+                    <td class="num">{{ s.actual_avg_score }}</td>
+                    <td class="num">{{ s.stored_count }}</td>
+                    <td class="num">{{ s.actual_count }}</td>
+                    <td class="num">{{ s.good_review_count }}</td>
+                    <td class="num">{{ s.bad_review_count }}</td>
+                    <td>
+                        {% if consistent %}
+                            <span class="tag tag-ok">一致</span>
+                        {% else %}
+                            <span class="tag tag-bad">不一致</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(9, '还没有司机收到评价') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="notice" style="margin-top:16px; font-size:12px;">
+        <b>为什么这里有两列分数</b><br>
+        <code class="mono">driver.service_score</code> 是<b>冗余的派生列</b>，
+        由触发器 <code class="mono">trg_review_after_insert</code> 在每次新增评价时增量维护；
+        右边的「实时聚合分」是视图 <code class="mono">v_driver_service_score</code>
+        直接对 <code class="mono">order_review</code> 求 <code class="mono">AVG(score)</code> 得到的。<br>
+        两列一致，说明触发器的增量算法正确 —— 这是对「用触发器维护冗余值」这一设计的<b>可验证性证明</b>。<br>
+        增量公式：<code class="mono">新均值 = (旧均值 × 旧评价数 + 本次评分) ÷ (旧评价数 + 1)</code>，
+        首次评价时 <code class="mono">service_score</code> 默认 5.00、<code class="mono">review_count</code> 为 0，
+        恰好得到本次评分，无需特判。
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">评分分布</h3>
+    {% set dist_total = (score_dist | map(attribute='n') | list | sum) if score_dist else 1 %}
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>评分</th><th class="num">数量</th><th style="width:55%;">占比</th></tr></thead>
+            <tbody>
+            {% for s in score_dist %}
+                <tr>
+                    <td style="color:#f59e0b; font-size:16px;">{{ '★' * s.score }}</td>
+                    <td class="num">{{ s.n }}</td>
+                    <td>
+                        <div class="bar {% if s.score >= 4 %}success{% elif s.score <= 2 %}danger{% else %}warning{% endif %}">
+                            <span style="width: {{ (s.n * 100 / (dist_total or 1)) | round(1) }}%"></span>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(3) }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">最近评价</h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>订单号</th><th>乘客</th><th>司机</th><th>评分</th>
+                <th>内容</th><th>标签</th><th>时间</th></tr>
+            </thead>
+            <tbody>
+            {% for r in recent %}
+                <tr>
+                    <td class="mono">{{ r.order_no }}</td>
+                    <td>{{ r.passenger_name }}</td>
+                    <td>{{ r.driver_name }}</td>
+                    <td style="color:#f59e0b; white-space:nowrap;">
+                        {{ '★' * r.score }}{{ '☆' * (5 - r.score) }}
+                    </td>
+                    <td class="wrap">{{ r.content or '-' }}</td>
+                    <td class="wrap">
+                        {% if r.tags %}
+                            {% for t in r.tags.split(',') %}<span class="tag">{{ t }}</span>{% endfor %}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="nowrap">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(7) }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

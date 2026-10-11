@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}数据库维护 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">数据库维护</h2>
+<p class="muted">清理过期的会话与派单邀请，保持数据整洁。</p>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">一键清理</h3>
+
+        <div class="notice" style="font-size:13px; margin-bottom:16px;">
+            <b>将执行以下两个操作</b><br>
+            1. 删除 <code class="mono">user_session</code> 中已过期的会话<br>
+            2. 调用存储过程 <code class="mono">sp_expire_dispatch</code>，
+               把超时未应答的派单邀请置为 <code class="mono">expired</code><br>
+            两个操作都只影响过期数据，不会删除任何订单或用户。
+        </div>
+
+        <form method="post" action="/admin/maintenance/run"
+              data-confirm="确定执行清理吗？">
+            <button class="btn" type="submit">立即清理</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">派单邀请状态分布</h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>状态</th><th class="num">数量</th></tr></thead>
+                <tbody>
+                {% for d in dispatch_stats %}
+                    <tr>
+                        <td>{{ m.invite_badge(d.status) }}</td>
+                        <td class="num">{{ d.n }}</td>
+                    </tr>
+                {% else %}
+                    {{ m.empty_row(2) }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="hint muted" style="margin-top:12px;">
+            <code class="mono">invited</code> 数量长期偏高通常说明邀请过期时间设置过长，
+            或司机端响应不及时。
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">数据库对象概览</h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>对象类型</th><th>名称</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>表</td><td class="mono">16 张</td>
+                    <td>字典 2 + 账号 6 + 主体 2 + 业务 3 + 选做 3</td></tr>
+                <tr><td>视图</td><td class="mono">6 个</td>
+                    <td>v_order_detail / v_available_drivers / v_pricing_current /
+                        v_order_status_duration / v_driver_service_score / v_expiring_licenses</td></tr>
+                <tr><td>存储函数</td><td class="mono">fn_calc_fare</td>
+                    <td>计价唯一真相来源</td></tr>
+                <tr><td>存储过程</td><td class="mono">6 个</td>
+                    <td>sp_create_order / sp_dispatch_order / sp_accept_order /
+                        sp_complete_order / sp_cancel_order / sp_expire_dispatch</td></tr>
+                <tr><td>触发器</td><td class="mono">trg_review_after_insert</td>
+                    <td>评价后增量维护司机服务分</td></tr>
+                <tr><td>索引</td><td class="mono">30 个</td>
+                    <td>含唯一索引、复合索引、生成列唯一索引 uk_active_driver</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="notice" style="margin-top:16px; font-size:12px;">
+        <b>为什么用存储过程而不是在应用层写 SQL</b><br>
+        接单涉及「资格复检 + 条件抢占 + 撤销其他邀请 + 写状态日志」四步，
+        必须是一个原子操作；把这段逻辑放在数据库里，
+        可以保证<b>任何调用方（Web 界面、测试脚本、手工 SQL）都走同一条正确路径</b>，
+        不会因为某个调用方漏了一步而产生不一致的数据。
+    </div>
+</div>
+{% endblock %}

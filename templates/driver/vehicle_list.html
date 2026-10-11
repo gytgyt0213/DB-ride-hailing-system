@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}我的车辆 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">我的车辆</h2>
+<p class="muted">
+    只有「可运营」状态的车辆才能用于接单。您名下有可运营车辆时才能上线。
+</p>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">车辆列表</h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>车牌号</th><th>车型</th><th>品牌型号</th><th>座位</th>
+                    <th>运营状态</th><th>保险到期</th><th>年检到期</th><th>操作</th></tr>
+                </thead>
+                <tbody>
+                {% for v in vehicles %}
+                    <tr>
+                        <td class="mono">{{ v.plate_no }}</td>
+                        <td>{{ v.type_name }}</td>
+                        <td>{{ v.brand or '' }} {{ v.model or '' }}</td>
+                        <td class="num">{{ v.seat_count }}</td>
+                        <td>
+                            {% if v.operate_status == 1 %}
+                                <span class="badge badge-completed">可运营</span>
+                            {% elif v.operate_status == 0 %}
+                                <span class="badge badge-pending">不可运营</span>
+                            {% else %}
+                                <span class="badge badge-cancelled">已注销</span>
+                            {% endif %}
+                        </td>
+                        <td class="nowrap">
+                            {{ v.insurance_expire_date or '-' }}
+                            {% if v.insurance_expire_date and v.insurance_expire_date < now.date() %}
+                                <span class="tag tag-bad">已过期</span>
+                            {% endif %}
+                        </td>
+                        <td class="nowrap">
+                            {{ v.annual_check_expire_date or '-' }}
+                            {% if v.annual_check_expire_date and v.annual_check_expire_date < now.date() %}
+                                <span class="tag tag-bad">已过期</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form class="inline-form" method="post"
+                                  action="/driver/vehicles/{{ v.vehicle_id }}/status">
+                                {% if v.operate_status == 1 %}
+                                    <input type="hidden" name="operate_status" value="0">
+                                    <button class="btn btn-sm btn-ghost" type="submit">停运</button>
+                                {% elif v.operate_status == 0 %}
+                                    <input type="hidden" name="operate_status" value="1">
+                                    <button class="btn btn-sm btn-success" type="submit">启用</button>
+                                {% else %}
+                                    <span class="muted">-</span>
+                                {% endif %}
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    {{ m.empty_row(8, '还没有登记车辆，请在右侧添加') }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">添加车辆</h3>
+        <form method="post" action="/driver/vehicles/new">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="plate_no">车牌号</label>
+                    <input type="text" id="plate_no" name="plate_no" maxlength="16"
+                           placeholder="如 京A12345" required>
+                </div>
+                <div class="form-row">
+                    <label for="car_type_id">车型</label>
+                    <select id="car_type_id" name="car_type_id">
+                        {% for ct in car_types %}
+                            <option value="{{ ct.car_type_id }}">{{ ct.type_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="brand">品牌</label>
+                    <input type="text" id="brand" name="brand" placeholder="如 大众">
+                </div>
+                <div class="form-row">
+                    <label for="model">型号</label>
+                    <input type="text" id="model" name="model" placeholder="如 朗逸">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="color">颜色</label>
+                    <input type="text" id="color" name="color" placeholder="如 白色">
+                </div>
+                <div class="form-row">
+                    <label for="seat_count">座位数</label>
+                    <input type="number" id="seat_count" name="seat_count"
+                           value="4" min="1" max="60">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label for="vehicle_license_no">行驶证号 <span class="muted">（选填）</span></label>
+                <input type="text" id="vehicle_license_no" name="vehicle_license_no"
+                       maxlength="30">
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="insurance_expire_date">保险到期日</label>
+                    <input type="date" id="insurance_expire_date" name="insurance_expire_date">
+                </div>
+                <div class="form-row">
+                    <label for="annual_check_expire_date">年检到期日</label>
+                    <input type="date" id="annual_check_expire_date"
+                           name="annual_check_expire_date">
+                </div>
+            </div>
+
+            <div class="notice" style="font-size:12px; margin-bottom:14px;">
+                填写保险与年检到期日，管理员端的「证照提醒」页面会在 30 天内到期时给出预警。
+            </div>
+
+            <div class="form-actions" style="border:0; padding:0;">
+                <button class="btn" type="submit">保存车辆</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

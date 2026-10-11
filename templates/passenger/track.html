@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}行程轨迹 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">行程轨迹回放</h2>
+<p class="muted">订单 {{ order.order_no }} · {{ order.origin_address }} → {{ order.dest_address }}</p>
+
+{% if not points %}
+    <div class="card">
+        {{ m.empty_block('该订单暂无轨迹数据',
+                         '只有「行程中」和「已完成」的订单才会记录轨迹点。') }}
+    </div>
+{% else %}
+    <div class="grid grid-4" style="margin-bottom: 16px;">
+        <div class="stat">
+            <div class="stat-label">轨迹点数</div>
+            <div class="stat-value primary">{{ summary.point_count }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">最高车速</div>
+            <div class="stat-value sm">{{ summary.max_speed or '-' }} km/h</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">平均车速</div>
+            <div class="stat-value sm">{{ summary.avg_speed or '-' }} km/h</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">实际里程</div>
+            <div class="stat-value sm">{{ order.distance_km or '-' }} km</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">
+            轨迹图 <span class="sub">Canvas 自绘，不依赖任何地图服务</span>
+        </h3>
+        <canvas id="track-canvas" class="track-canvas" height="360"
+                data-points='{{ track_json | safe }}'></canvas>
+        <div class="notice" style="margin-top: 14px; font-size: 12px;">
+            轨迹数据来自 <code class="mono">order_track</code> 表，
+            由 <code class="mono">(order_id, located_at)</code> 复合索引组织。
+            演示数据按行程时长的均匀采样生成，共 {{ summary.point_count }} 个点。
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">轨迹点明细 <span class="sub">前 50 条</span></h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>#</th><th class="num">经度</th><th class="num">纬度</th>
+                    <th class="num">速度 km/h</th><th>采样时间</th></tr>
+                </thead>
+                <tbody>
+                {% for p in points[:50] %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="num mono">{{ p.longitude }}</td>
+                        <td class="num mono">{{ p.latitude }}</td>
+                        <td class="num">{{ p.speed if p.speed is not none else '-' }}</td>
+                        <td class="nowrap">{{ p.located_at.strftime('%H:%M:%S.%f')[:12] }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

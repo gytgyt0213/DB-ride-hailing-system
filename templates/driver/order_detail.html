@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}订单 {{ order.order_no }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div data-autorefresh="12000" data-status="{{ order.status }}"></div>
+
+<div class="card">
+    <h3 class="card-title">
+        订单 {{ order.order_no }}
+        <span>{{ m.status_badge(order.status, order.status_text) }}</span>
+    </h3>
+
+    {# 行程推进按钮：按当前状态展示下一步操作 #}
+    <div class="btn-row">
+        {% if order.status == 'accepted' %}
+            <form class="inline-form" method="post" action="/driver/orders/{{ order.order_id }}/arrive">
+                <button class="btn" type="submit">我已到达上车点</button>
+            </form>
+        {% elif order.status == 'arrived' %}
+            <form class="inline-form" method="post" action="/driver/orders/{{ order.order_id }}/start">
+                <button class="btn btn-success" type="submit">乘客已上车，开始行程</button>
+            </form>
+        {% endif %}
+
+        <a class="btn btn-ghost btn-sm" href="/driver/orders">返回列表</a>
+
+        {% if points %}
+            <span class="tag">已记录 {{ track_summary.point_count }} 个轨迹点</span>
+        {% endif %}
+    </div>
+</div>
+
+{% if order.status == 'in_progress' %}
+<div class="card">
+    <h3 class="card-title">结束行程并结算</h3>
+    <form method="post" action="/driver/orders/{{ order.order_id }}/complete">
+        <div class="grid grid-2" style="max-width: 620px;">
+            <div class="form-row">
+                <label for="distance_km">实际行驶里程（km）</label>
+                <input type="number" id="distance_km" name="distance_km"
+                       step="0.001" min="0.1" data-positive placeholder="如 12.5" required>
+            </div>
+            <div class="form-row">
+                <label for="duration_min">实际行程时长（分钟）</label>
+                <input type="number" id="duration_min" name="duration_min"
+                       step="0.01" min="0.1" data-positive placeholder="如 28" required>
+            </div>
+        </div>
+
+        <div class="table-wrap" style="max-width: 620px;">
+            <table class="data">
+                <thead><tr><th>本单计价快照</th><th class="num">数值</th></tr></thead>
+                <tbody>
+                    <tr><td>起步价</td><td class="num">￥{{ order.snap_base_price }}</td></tr>
+                    <tr><td>起步含里程</td><td class="num">{{ order.snap_base_distance_km }} km</td></tr>
+                    <tr><td>里程单价</td><td class="num">￥{{ order.snap_per_km_price }}/km</td></tr>
+                    <tr><td>时长单价</td><td class="num">￥{{ order.snap_per_min_price }}/min</td></tr>
+                    <tr><td>最低消费</td><td class="num">￥{{ order.snap_min_price }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-success btn-lg" type="submit">结束行程并结算</button>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">订单信息</h3>
+        <dl class="detail-list">
+            <dt>乘客</dt><dd>{{ order.passenger_name }} · <span class="mono">{{ order.passenger_phone }}</span></dd>
+            <dt>上车点</dt><dd>{{ order.origin_address }}</dd>
+            <dt>下车点</dt><dd>{{ order.dest_address }}</dd>
+            <dt>车型</dt><dd>{{ order.car_type_name }}</dd>
+            <dt>执行车辆</dt><dd class="mono">{{ order.plate_no or '-' }}</dd>
+            {% if order.passenger_remark %}
+                <dt>乘客备注</dt><dd>{{ order.passenger_remark }}</dd>
+            {% endif %}
+            <dt>下单时间</dt><dd>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+            <dt>接单时间</dt>
+            <dd>{{ order.accepted_at.strftime('%Y-%m-%d %H:%M:%S') if order.accepted_at else '-' }}</dd>
+            {% if order.fare_amount %}
+                <dt>结算车费</dt>
+                <dd><span class="money" style="font-size:18px;">￥{{ order.fare_amount }}</span></dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">状态流转时间线</h3>
+        {{ m.timeline(logs, order.status) }}
+    </div>
+</div>
+
+{% if duration and duration.t_completed %}
+<div class="card">
+    <h3 class="card-title">各阶段耗时</h3>
+    <div class="grid grid-4">
+        <div class="stat">
+            <div class="stat-label">等待接单</div>
+            <div class="stat-value sm">{{ m.dur(duration.wait_accept_sec) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">接驾耗时</div>
+            <div class="stat-value sm">{{ m.dur(duration.pickup_sec) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">行程耗时</div>
+            <div class="stat-value sm">{{ m.dur(duration.trip_sec) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">全流程</div>
+            <div class="stat-value sm">{{ m.dur(duration.total_sec) }}</div>
+        </div>
+    </div>
+    <div class="hint muted" style="margin-top:10px;">
+        数据来自视图 <code class="mono">v_order_status_duration</code>，
+        由状态日志表 <code class="mono">ride_order_status_log</code> 聚合得出。
+    </div>
+</div>
+{% endif %}
+
+{% if review %}
+<div class="card">
+    <h3 class="card-title">乘客评价</h3>
+    <div style="font-size: 20px; color: #f59e0b; margin-bottom: 8px;">
+        {{ '★' * review.score }}{{ '☆' * (5 - review.score) }}
+    </div>
+    <p>{{ review.content or '（未填写文字评价）' }}</p>
+    {% if review.tags %}
+        <div>{% for t in review.tags.split(',') %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

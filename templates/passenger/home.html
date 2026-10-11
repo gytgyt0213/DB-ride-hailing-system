@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}乘客首页 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">您好，{{ user.real_name }}</h2>
+<p class="muted">选择上车点和下车点，平台会为您匹配附近司机。</p>
+
+<div class="grid grid-4" style="margin-bottom: 18px;">
+    <div class="stat">
+        <div class="stat-label">累计订单</div>
+        <div class="stat-value primary">{{ stats.total }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">已完成行程</div>
+        <div class="stat-value success">{{ stats.completed }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">进行中</div>
+        <div class="stat-value warning">{{ active_orders | length }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">常用地址</div>
+        <div class="stat-value sm">{{ addresses | length }} 个</div>
+    </div>
+</div>
+
+{% if active_orders %}
+<div class="card">
+    <h3 class="card-title">进行中的订单</h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>订单号</th><th>状态</th><th>上车点</th><th>下车点</th>
+                <th>司机</th><th>下单时间</th><th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for o in active_orders %}
+                <tr>
+                    <td class="mono">{{ o.order_no }}</td>
+                    <td>{{ m.status_badge(o.status, o.status_text) }}</td>
+                    <td class="wrap">{{ o.origin_address }}</td>
+                    <td class="wrap">{{ o.dest_address }}</td>
+                    <td>{{ o.driver_name or '待分配' }}</td>
+                    <td class="nowrap">{{ o.created_at.strftime('%m-%d %H:%M') }}</td>
+                    <td><a class="btn btn-sm" href="/passenger/orders/{{ o.order_id }}">查看追踪</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">快速叫车</h3>
+        <form method="get" action="/passenger/orders/new">
+            <div class="form-row">
+                <label>从常用地址出发</label>
+                <select disabled>
+                    <option>前往「立即叫车」页面可选择</option>
+                </select>
+                <div class="hint">
+                    已保存 {{ addresses | length }} 个常用地址，下单时可一键选用。
+                </div>
+            </div>
+            <a class="btn btn-lg" href="/passenger/orders/new" style="width:100%;">
+                立即叫车 →
+            </a>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">车型与计价</h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>车型</th><th class="num">起步价</th><th class="num">里程单价</th>
+                    <th class="num">时长单价</th></tr>
+                </thead>
+                <tbody>
+                {% for p in pricing %}
+                    <tr>
+                        <td>{{ p.type_name }}</td>
+                        <td class="num">￥{{ p.base_price }}</td>
+                        <td class="num">￥{{ p.per_km_price }}/km</td>
+                        <td class="num">￥{{ p.per_min_price }}/min</td>
+                    </tr>
+                {% else %}
+                    {{ m.empty_row(4, '暂无生效的计价规则') }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="hint muted" style="margin-top:10px;">
+            起步价含 {{ pricing[0].base_distance_km if pricing else 3 }} 公里，
+            超出部分按里程单价计费，另按行程时长计费。
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">
+        最近订单
+        <a class="toplink" href="/passenger/orders">查看全部 →</a>
+    </h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr>
+                <th>订单号</th><th>状态</th><th>行程</th><th>车型</th>
+                <th class="num">车费</th><th>下单时间</th><th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for o in recent_orders %}
+                <tr>
+                    <td class="mono">{{ o.order_no }}</td>
+                    <td>{{ m.status_badge(o.status, o.status_text) }}</td>
+                    <td class="wrap">{{ o.origin_address }} → {{ o.dest_address }}</td>
+                    <td>{{ o.car_type_name }}</td>
+                    <td class="num">
+                        {% if o.fare_amount %}<span class="money">￥{{ o.fare_amount }}</span>
+                        {% else %}<span class="muted">-</span>{% endif %}
+                    </td>
+                    <td class="nowrap">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><a class="btn btn-sm btn-ghost"
+                           href="/passenger/orders/{{ o.order_id }}">详情</a></td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(7, '还没有订单，点击上方「立即叫车」开始') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

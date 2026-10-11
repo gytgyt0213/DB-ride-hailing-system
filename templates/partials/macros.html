@@ -1,0 +1,83 @@
+{# =============================================================
+   公共宏：状态徽章、时间线、空状态
+   用法：{% import "partials/macros.html" as m %}
+        {{ m.status_badge(order.status, order.status_text) }}
+   ============================================================= #}
+
+{% macro status_badge(status, text=None) -%}
+<span class="badge badge-{{ status }}">{{ text or status }}</span>
+{%- endmacro %}
+
+{% macro invite_badge(status) -%}
+    {%- set labels = {'invited': '待应答', 'accepted': '已接受',
+                      'rejected': '已拒绝', 'expired': '已过期',
+                      'cancelled': '已取消'} -%}
+<span class="badge badge-{{ status }}">{{ labels.get(status, status) }}</span>
+{%- endmacro %}
+
+{% macro online_badge(online_status) -%}
+    {%- if online_status == 1 -%}
+<span class="badge badge-completed">在线</span>
+    {%- else -%}
+<span class="badge badge-cancelled">离线</span>
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro audit_badge(audit_status) -%}
+    {%- if audit_status == 1 -%}
+<span class="badge badge-completed">已通过</span>
+    {%- elif audit_status == 0 -%}
+<span class="badge badge-pending">待审核</span>
+    {%- else -%}
+<span class="badge badge-rejected">已驳回</span>
+    {%- endif -%}
+{%- endmacro %}
+
+{# 订单状态时间线：需要 ride_order_status_log 的行列表 #}
+{% macro timeline(logs, current_status) -%}
+    {%- set order_seq = ['pending', 'accepted', 'arrived', 'in_progress', 'completed'] -%}
+    {%- set labels = {'pending': '待接单', 'accepted': '已接单', 'arrived': '司机已到达',
+                      'in_progress': '行程中', 'completed': '已完成', 'cancelled': '已取消'} -%}
+<ul class="timeline">
+    {% for log in logs %}
+        {% set cls = 'done' if log.to_status == current_status else '' %}
+        {% if log.to_status == current_status %}{% set cls = 'current' %}{% endif %}
+        <li class="{{ cls }}">
+            <div class="tl-title">{{ labels.get(log.to_status, log.to_status) }}</div>
+            <div class="tl-meta">
+                {{ log.changed_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                {% if log.remark %} · {{ log.remark }}{% endif %}
+                {% if log.operator_type %}
+                    · 操作者：
+                    {%- if log.operator_type == 'passenger' %}乘客
+                    {%- elif log.operator_type == 'driver' %}司机
+                    {%- elif log.operator_type == 'admin' %}管理员
+                    {%- else %}系统{% endif %}
+                    {%- if log.operator_id %} #{{ log.operator_id }}{% endif %}
+                {% endif %}
+            </div>
+        </li>
+    {% endfor %}
+</ul>
+{%- endmacro %}
+
+{# 空状态占位 #}
+{% macro empty_row(colspan, text='暂无数据') -%}
+<tr><td class="empty" colspan="{{ colspan }}">{{ text }}</td></tr>
+{%- endmacro %}
+
+{% macro empty_block(text='暂无数据', hint='') -%}
+<div class="notice" style="text-align:center; padding: 28px;">
+    {{ text }}
+    {% if hint %}<div style="font-size:12px; margin-top:6px;">{{ hint }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{# 耗时秒 -> 人类可读 #}
+{% macro dur(seconds) -%}
+    {%- if seconds is none -%}-
+    {%- elif seconds < 60 -%}{{ seconds }} 秒
+    {%- elif seconds < 3600 -%}{{ (seconds / 60) | round(1) }} 分钟
+    {%- else -%}{{ (seconds / 3600) | round(1) }} 小时
+    {%- endif -%}
+{%- endmacro %}

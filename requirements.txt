@@ -1,0 +1,13 @@
+# 网约车（打车）系统 —— Python 依赖
+#
+# 安装（⚠️ 必须用指定的 Python 3.9 解释器，见 README）：
+#   F:\pythonnewversion\py39ver\python.exe -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+#
+# 版本为本机实测已安装的版本，锁定以避免环境漂移。
+
+fastapi==0.128.8
+uvicorn==0.39.0
+PyMySQL==1.2.3
+cryptography==50.0.2
+Jinja2==3.1.6
+python-multipart==0.0.20

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}管理总览 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">管理总览</h2>
+
+<div class="grid grid-4" style="margin-bottom:18px;">
+    <div class="stat">
+        <div class="stat-label">订单总量</div>
+        <div class="stat-value primary">{{ overview.orders }}</div>
+        <div class="stat-hint">完成 {{ overview.completed }} · 取消 {{ overview.cancelled }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">营收合计</div>
+        <div class="stat-value success">￥{{ overview.revenue or 0 }}</div>
+        <div class="stat-hint">客单价 ￥{{ overview.avg_fare or 0 }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">司机</div>
+        <div class="stat-value">{{ overview.drivers }}</div>
+        <div class="stat-hint">在线 {{ overview.drivers_online }} 人</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">车辆</div>
+        <div class="stat-value">{{ overview.vehicles }}</div>
+        <div class="stat-hint">可运营 {{ overview.vehicles_ok }} 辆</div>
+    </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:18px;">
+    <div class="stat">
+        <div class="stat-label">乘客</div>
+        <div class="stat-value sm">{{ overview.passengers }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">进行中订单</div>
+        <div class="stat-value sm warning">{{ overview.active }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">评价</div>
+        <div class="stat-value sm">{{ overview.reviews }}</div>
+        <div class="stat-hint">平均 {{ reviews.avg_score or '-' }} 分</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">轨迹点</div>
+        <div class="stat-value sm">{{ overview.track_points }}</div>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">订单状态分布</h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>状态</th><th class="num">数量</th><th style="width:45%;">占比</th></tr></thead>
+                <tbody>
+                {% set total = overview.orders or 1 %}
+                {% for row in by_status %}
+                    <tr>
+                        <td>{{ m.status_badge(row.status, status_labels.get(row.status, row.status)) }}</td>
+                        <td class="num">{{ row.n }}</td>
+                        <td>
+                            <div class="bar">
+                                <span style="width: {{ (row.n * 100 / total) | round(1) }}%"></span>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    {{ m.empty_row(3, '暂无订单数据') }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">各阶段平均耗时</h3>
+        {% if stages and stages.sample_count %}
+            <div class="grid grid-2">
+                <div class="stat" style="box-shadow:none;">
+                    <div class="stat-label">等待接单</div>
+                    <div class="stat-value sm">{{ m.dur(stages.avg_wait_accept) }}</div>
+                    <div class="stat-hint">最长 {{ m.dur(stages.max_wait_accept) }}</div>
+                </div>
+                <div class="stat" style="box-shadow:none;">
+                    <div class="stat-label">司机接驾</div>
+                    <div class="stat-value sm">{{ m.dur(stages.avg_pickup) }}</div>
+                </div>
+                <div class="stat" style="box-shadow:none;">
+                    <div class="stat-label">行程耗时</div>
+                    <div class="stat-value sm">{{ m.dur(stages.avg_trip) }}</div>
+                </div>
+                <div class="stat" style="box-shadow:none;">
+                    <div class="stat-label">全流程</div>
+                    <div class="stat-value sm">{{ m.dur(stages.avg_total) }}</div>
+                </div>
+            </div>
+            <div class="hint muted" style="margin-top:12px;">
+                样本 {{ stages.sample_count }} 单，数据来自视图
+                <code class="mono">v_order_status_duration</code>。
+            </div>
+        {% else %}
+            {{ m.empty_block('暂无已完成订单可供统计') }}
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">订单高峰时段分布</h3>
+        {% set max_hour = (by_hour | map(attribute='n') | list | max) if by_hour else 0 %}
+        <div class="chart" data-bar-chart data-max="{{ max_hour }}">
+            {% for h in range(24) %}
+                {% set found = by_hour | selectattr('hour', 'equalto', h) | list %}
+                {% set v = found[0].n if found else 0 %}
+                <div class="chart-col">
+                    <div class="chart-bar" data-value="{{ v }}"
+                         data-label="{{ '%02d' % h }} 时"></div>
+                    <div class="chart-x">{{ h }}</div>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="hint muted" style="margin-top:8px;">横轴为 24 小时制，柱高表示该时段的下单量。</div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">
+            证照到期提醒
+            <a class="toplink" href="/admin/licenses">全部 →</a>
+        </h3>
+        {% if expiring %}
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>名称</th><th>证照</th><th>到期日</th><th class="num">剩余</th></tr></thead>
+                    <tbody>
+                    {% for e in expiring[:8] %}
+                        <tr>
+                            <td>{{ e.subject_name }}</td>
+                            <td>{{ e.license_type }}</td>
+                            <td class="nowrap">{{ e.expire_date }}</td>
+                            <td class="num">
+                                {% if e.days_left < 0 %}
+                                    <span class="tag tag-bad">已过期 {{ -e.days_left }} 天</span>
+                                {% elif e.days_left <= 7 %}
+                                    <span class="tag tag-bad">{{ e.days_left }} 天</span>
+                                {% else %}
+                                    <span class="tag tag-warn">{{ e.days_left }} 天</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            {{ m.empty_block('30 天内没有到期的证照') }}
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">
+        最新订单
+        <a class="toplink" href="/admin/orders">订单监控 →</a>
+    </h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>订单号</th><th>状态</th><th>乘客</th><th>司机</th>
+                <th>行程</th><th class="num">车费</th><th>下单时间</th><th></th></tr>
+            </thead>
+            <tbody>
+            {% for o in recent_orders %}
+                <tr>
+                    <td class="mono">{{ o.order_no }}</td>
+                    <td>{{ m.status_badge(o.status, o.status_text) }}</td>
+                    <td>{{ o.passenger_name }}</td>
+                    <td>{{ o.driver_name or '-' }}</td>
+                    <td class="wrap">{{ o.origin_address }} → {{ o.dest_address }}</td>
+                    <td class="num">
+                        {% if o.fare_amount %}<span class="money">￥{{ o.fare_amount }}</span>
+                        {% else %}<span class="muted">-</span>{% endif %}
+                    </td>
+                    <td class="nowrap">{{ o.created_at.strftime('%m-%d %H:%M') }}</td>
+                    <td><a class="btn btn-sm btn-ghost"
+                           href="/admin/orders/{{ o.order_id }}">详情</a></td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(8) }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

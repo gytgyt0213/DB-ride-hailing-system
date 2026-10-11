@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}常用地址 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">常用地址</h2>
+<p class="muted">保存家、公司等常用地点，叫车时可一键选用。</p>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">已保存的地址</h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>标签</th><th>地址</th><th class="num">经度</th>
+                    <th class="num">纬度</th><th></th><th></th></tr>
+                </thead>
+                <tbody>
+                {% for a in addresses %}
+                    <tr>
+                        <td>
+                            {{ a.label }}
+                            {% if a.is_default %}<span class="tag tag-ok">默认</span>{% endif %}
+                        </td>
+                        <td class="wrap">{{ a.address_name }}</td>
+                        <td class="num mono">{{ a.longitude if a.longitude is not none else '-' }}</td>
+                        <td class="num mono">{{ a.latitude if a.latitude is not none else '-' }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-ghost" type="button"
+                                    onclick="document.getElementById('edit-{{ a.address_id }}').scrollIntoView({behavior:'smooth'});">
+                                编辑
+                            </button>
+                        </td>
+                        <td>
+                            <form class="inline-form" method="post"
+                                  action="/passenger/addresses/{{ a.address_id }}/delete"
+                                  data-confirm="确定删除地址「{{ a.label }}」吗？">
+                                <button class="btn btn-sm btn-danger" type="submit">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    {{ m.empty_row(6, '还没有保存常用地址') }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="notice" style="margin-top:14px; font-size:12px;">
+            同一乘客的标签唯一（唯一键 <code class="mono">uk_address_passenger_label</code>），
+            删除地址会同步删除该乘客名下的记录，不会影响他人的地址。
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">新增地址</h3>
+        <form method="post" action="/passenger/addresses/new">
+            <div class="form-row">
+                <label for="label">标签</label>
+                <input type="text" id="label" name="label" maxlength="20"
+                       placeholder="如 家 / 公司 / 学校" required>
+                <div class="hint">标签在同一乘客下不能重复。</div>
+            </div>
+            <div class="form-row">
+                <label for="address_name">地址描述</label>
+                <input type="text" id="address_name" name="address_name"
+                       maxlength="200" placeholder="如 朝阳区望京SOHO T1" required>
+            </div>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="longitude">经度 <span class="muted">（选填）</span></label>
+                    <input type="text" id="longitude" name="longitude"
+                           placeholder="如 116.48">
+                </div>
+                <div class="form-row">
+                    <label for="latitude">纬度 <span class="muted">（选填）</span></label>
+                    <input type="text" id="latitude" name="latitude"
+                           placeholder="如 39.99">
+                </div>
+            </div>
+            <div class="form-row">
+                <label style="font-weight:400;">
+                    <input type="checkbox" name="is_default" value="1"
+                           style="width:auto;"> 设为默认地址
+                </label>
+            </div>
+            <div class="form-actions">
+                <button class="btn" type="submit">保存地址</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if addresses %}
+<div class="card">
+    <h3 class="card-title">编辑地址</h3>
+    <div class="grid grid-2">
+        {% for a in addresses %}
+            <form method="post" action="/passenger/addresses/{{ a.address_id }}/update"
+                  id="edit-{{ a.address_id }}" style="border:1px solid var(--border);
+                  border-radius:8px; padding:14px;">
+                <div style="font-weight:600; margin-bottom:10px;">
+                    地址 #{{ a.address_id }}
+                    {% if a.is_default %}<span class="tag tag-ok">默认</span>{% endif %}
+                </div>
+                <div class="form-row">
+                    <label>标签</label>
+                    <input type="text" name="label" value="{{ a.label }}" maxlength="20" required>
+                </div>
+                <div class="form-row">
+                    <label>地址描述</label>
+                    <input type="text" name="address_name" value="{{ a.address_name }}"
+                           maxlength="200" required>
+                </div>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <label>经度</label>
+                        <input type="text" name="longitude"
+                               value="{{ a.longitude if a.longitude is not none else '' }}">
+                    </div>
+                    <div class="form-row">
+                        <label>纬度</label>
+                        <input type="text" name="latitude"
+                               value="{{ a.latitude if a.latitude is not none else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label style="font-weight:400;">
+                        <input type="checkbox" name="is_default" value="1"
+                               {% if a.is_default %}checked{% endif %} style="width:auto;">
+                        设为默认地址
+                    </label>
+                </div>
+                <button class="btn btn-sm" type="submit">保存修改</button>
+            </form>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

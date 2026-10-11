@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}司机资料 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">司机资料</h2>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">
+            账号与资质
+            <span>{{ m.audit_badge(profile.audit_status) }}</span>
+        </h3>
+        <dl class="detail-list">
+            <dt>用户名</dt><dd class="mono">{{ profile.username }}</dd>
+            <dt>司机编号</dt><dd class="mono">#{{ profile.driver_id }}</dd>
+            <dt>在线状态</dt><dd>{{ m.online_badge(profile.online_status) }}</dd>
+            <dt>服务分</dt><dd>{{ profile.service_score }}（{{ profile.review_count }} 条评价）</dd>
+            <dt>注册时间</dt><dd>{{ profile.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+            <dt>账号状态</dt>
+            <dd>
+                {% if profile.account_status == 1 %}
+                    <span class="badge badge-completed">正常</span>
+                {% else %}
+                    <span class="badge badge-cancelled">已禁用</span>
+                {% endif %}
+            </dd>
+        </dl>
+
+        {% if profile.license_expire_date %}
+            {% set days_left = (profile.license_expire_date - now.date()).days %}
+            <div class="notice {% if days_left <= 30 %}notice-warn{% endif %}"
+                 style="margin-top:14px; font-size:13px;">
+                驾驶证到期日：<b>{{ profile.license_expire_date }}</b>
+                {% if days_left < 0 %}
+                    （<span style="color:var(--danger);">已过期 {{ -days_left }} 天</span>）
+                {% elif days_left <= 30 %}
+                    （还剩 {{ days_left }} 天，请尽快办理换证）
+                {% else %}
+                    （还剩 {{ days_left }} 天）
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <a class="btn btn-ghost" href="/auth/password">修改密码</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">修改资料</h3>
+        <form method="post" action="/driver/profile">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="real_name">姓名</label>
+                    <input type="text" id="real_name" name="real_name"
+                           value="{{ profile.real_name }}" maxlength="50" required>
+                </div>
+                <div class="form-row">
+                    <label for="phone">手机号</label>
+                    <input type="tel" id="phone" name="phone"
+                           value="{{ profile.phone }}" maxlength="20"
+                           pattern="1[3-9][0-9]{9}" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label for="region">所在区域 <span class="muted">（决定能接到哪些区域的派单）</span></label>
+                <select id="region" name="region">
+                    {% for r in regions %}
+                        <option value="{{ r }}" {% if profile.region == r %}selected{% endif %}>
+                            {{ r }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="id_card_no">身份证号</label>
+                    <input type="text" id="id_card_no" name="id_card_no"
+                           value="{{ profile.id_card_no or '' }}" maxlength="18">
+                </div>
+                <div class="form-row">
+                    <label for="driver_license_no">驾驶证号</label>
+                    <input type="text" id="driver_license_no" name="driver_license_no"
+                           value="{{ profile.driver_license_no or '' }}" maxlength="30">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label for="license_expire_date">驾驶证到期日</label>
+                <input type="date" id="license_expire_date" name="license_expire_date"
+                       value="{{ profile.license_expire_date or '' }}">
+                <div class="hint">到期前 30 天会在管理端「证照提醒」中预警。</div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn" type="submit">保存资料</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

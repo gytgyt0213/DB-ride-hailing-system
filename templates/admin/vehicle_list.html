@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}车辆管理 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">车辆管理</h2>
+<p class="muted">
+    需求 6：只有车辆处于<b>可运营</b>状态时，其所属司机才能接单。
+    把车辆置为「不可运营」会立即让该司机从可派单候选中移除。
+</p>
+
+<div class="card">
+    <h3 class="card-title">车辆列表 <span class="sub">共 {{ vehicles | length }} 辆</span></h3>
+
+    <form class="filters" method="get" action="/admin/vehicles">
+        <div class="form-row">
+            <label>关键词</label>
+            <input type="text" name="keyword" value="{{ keyword }}"
+                   placeholder="车牌 / 品牌 / 型号 / 司机">
+        </div>
+        <div class="form-row">
+            <label>运营状态</label>
+            <select name="operate_status">
+                <option value="">全部</option>
+                <option value="1" {% if operate_status == '1' %}selected{% endif %}>可运营</option>
+                <option value="0" {% if operate_status == '0' %}selected{% endif %}>不可运营</option>
+                <option value="2" {% if operate_status == '2' %}selected{% endif %}>已注销</option>
+            </select>
+        </div>
+        <button class="btn" type="submit">查询</button>
+        <a class="btn btn-ghost" href="/admin/vehicles">重置</a>
+    </form>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>ID</th><th>车牌号</th><th>车型</th><th>品牌型号</th><th>颜色</th>
+                <th>座位</th><th>所属司机</th><th>运营状态</th>
+                <th>保险到期</th><th>年检到期</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+            {% for v in vehicles %}
+                <tr>
+                    <td class="mono">#{{ v.vehicle_id }}</td>
+                    <td class="mono">{{ v.plate_no }}</td>
+                    <td>{{ v.type_name }}</td>
+                    <td>{{ v.brand or '' }} {{ v.model or '' }}</td>
+                    <td>{{ v.color or '-' }}</td>
+                    <td class="num">{{ v.seat_count }}</td>
+                    <td>{{ v.driver_name }}<br>
+                        <span class="muted mono">{{ v.driver_phone }}</span></td>
+                    <td>
+                        {% if v.operate_status == 1 %}
+                            <span class="badge badge-completed">可运营</span>
+                        {% elif v.operate_status == 0 %}
+                            <span class="badge badge-pending">不可运营</span>
+                        {% else %}
+                            <span class="badge badge-cancelled">已注销</span>
+                        {% endif %}
+                    </td>
+                    <td class="nowrap">
+                        {{ v.insurance_expire_date or '-' }}
+                        {% if v.insurance_expire_date and v.insurance_expire_date < now.date() %}
+                            <span class="tag tag-bad">过期</span>
+                        {% endif %}
+                    </td>
+                    <td class="nowrap">
+                        {{ v.annual_check_expire_date or '-' }}
+                        {% if v.annual_check_expire_date and v.annual_check_expire_date < now.date() %}
+                            <span class="tag tag-bad">过期</span>
+                        {% endif %}
+                    </td>
+                    <td class="nowrap">
+                        <form class="inline-form" method="post"
+                              action="/admin/vehicles/{{ v.vehicle_id }}/status">
+                            {% if v.operate_status != 1 %}
+                                <input type="hidden" name="operate_status" value="1">
+                                <button class="btn btn-sm btn-success" type="submit">置为可运营</button>
+                            {% else %}
+                                <input type="hidden" name="operate_status" value="0">
+                                <button class="btn btn-sm btn-ghost" type="submit">置为不可运营</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(11, '没有符合条件的车辆') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">登记新车</h3>
+    <form method="post" action="/admin/vehicles/new">
+        <div class="form-grid">
+            <div class="form-row">
+                <label for="driver_id">所属司机</label>
+                <select id="driver_id" name="driver_id" required>
+                    <option value="">请选择司机</option>
+                    {% for d in drivers %}
+                        <option value="{{ d.driver_id }}">
+                            #{{ d.driver_id }} {{ d.real_name }}（{{ d.region }}）
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-row">
+                <label for="plate_no">车牌号</label>
+                <input type="text" id="plate_no" name="plate_no" maxlength="16"
+                       placeholder="如 京A12345" required>
+            </div>
+            <div class="form-row">
+                <label for="car_type_id">车型</label>
+                <select id="car_type_id" name="car_type_id">
+                    {% for ct in car_types %}
+                        <option value="{{ ct.car_type_id }}">{{ ct.type_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-row">
+                <label for="brand">品牌</label>
+                <input type="text" id="brand" name="brand" maxlength="50">
+            </div>
+            <div class="form-row">
+                <label for="model">型号</label>
+                <input type="text" id="model" name="model" maxlength="50">
+            </div>
+            <div class="form-row">
+                <label for="color">颜色</label>
+                <input type="text" id="color" name="color" maxlength="20">
+            </div>
+            <div class="form-row">
+                <label for="seat_count">座位数</label>
+                <input type="number" id="seat_count" name="seat_count"
+                       value="4" min="1" max="60">
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-row">
+                <label for="operate_status">运营状态</label>
+                <select id="operate_status" name="operate_status">
+                    <option value="1">可运营</option>
+                    <option value="0">不可运营</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label for="vehicle_license_no">行驶证号</label>
+                <input type="text" id="vehicle_license_no" name="vehicle_license_no" maxlength="30">
+            </div>
+            <div class="form-row">
+                <label for="insurance_expire_date">保险到期日</label>
+                <input type="date" id="insurance_expire_date" name="insurance_expire_date">
+            </div>
+            <div class="form-row">
+                <label for="annual_check_expire_date">年检到期日</label>
+                <input type="date" id="annual_check_expire_date" name="annual_check_expire_date">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn" type="submit">保存车辆</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}我的订单 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">我的订单</h2>
+
+{% set tabs = [('', '全部'), ('pending', '待接单'), ('accepted', '已接单'),
+               ('arrived', '司机已到达'), ('in_progress', '行程中'),
+               ('completed', '已完成'), ('cancelled', '已取消')] %}
+<div class="tabs">
+    {% for value, label in tabs %}
+        <a href="/passenger/orders{% if value %}?status={{ value }}{% endif %}"
+           class="{% if current_status == value %}active{% endif %}">
+            {{ label }}
+            {% if value %}
+                <span class="count">{{ by_status.get(value, 0) }}</span>
+            {% else %}
+                <span class="count">{{ total }}</span>
+            {% endif %}
+        </a>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="form-row inline" style="margin-bottom:14px;">
+        <label>快速筛选</label>
+        <input type="text" data-table-filter="orders-table"
+               placeholder="输入订单号 / 地址 / 司机名">
+    </div>
+
+    <div class="table-wrap">
+        <table class="data" id="orders-table">
+            <thead>
+            <tr>
+                <th>订单号</th><th>状态</th><th>行程</th><th>车型</th>
+                <th>司机</th><th class="num">里程</th><th class="num">车费</th>
+                <th>下单时间</th><th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for o in orders %}
+                <tr>
+                    <td class="mono">{{ o.order_no }}</td>
+                    <td>{{ m.status_badge(o.status, o.status_text) }}</td>
+                    <td class="wrap">{{ o.origin_address }} → {{ o.dest_address }}</td>
+                    <td>{{ o.car_type_name }}</td>
+                    <td>
+                        {% if o.driver_name %}
+                            {{ o.driver_name }}
+                            <span class="muted mono">{{ o.plate_no or '' }}</span>
+                        {% else %}
+                            <span class="muted">待分配</span>
+                        {% endif %}
+                    </td>
+                    <td class="num">{{ o.distance_km or '-' }}</td>
+                    <td class="num">
+                        {% if o.fare_amount %}<span class="money">￥{{ o.fare_amount }}</span>
+                        {% else %}<span class="muted">-</span>{% endif %}
+                    </td>
+                    <td class="nowrap">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        <a class="btn btn-sm btn-ghost"
+                           href="/passenger/orders/{{ o.order_id }}">详情</a>
+                    </td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(9, '该状态下暂无订单') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

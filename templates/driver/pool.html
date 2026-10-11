@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}待接单 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">待接单</h2>
+<p class="muted">这些是平台派给您的订单邀请。接单后即可开始行程。</p>
+
+{% if invites %}
+    <div class="grid grid-2">
+        {% for i in invites %}
+            <div class="card" style="margin-bottom:0;">
+                <h3 class="card-title">
+                    {{ i.order_no }}
+                    <span class="sub">第 {{ i.batch_no }} 轮邀请</span>
+                </h3>
+
+                <dl class="detail-list">
+                    <dt>上车点</dt><dd>{{ i.origin_address }}</dd>
+                    <dt>区域</dt><dd>{{ i.origin_region }}</dd>
+                    <dt>下车点</dt><dd>{{ i.dest_address }}</dd>
+                    <dt>车型要求</dt><dd>{{ i.car_type_name }}</dd>
+                    <dt>乘客</dt><dd>{{ i.passenger_name }}</dd>
+                    <dt>预估车费</dt>
+                    <dd>{% if i.est_fare %}<span class="money">￥{{ i.est_fare }}</span>
+                        {% else %}-{% endif %}</dd>
+                    <dt>邀请时间</dt><dd>{{ i.invited_at.strftime('%H:%M:%S') }}</dd>
+                    <dt>应答截止</dt>
+                    <dd>
+                        {% if i.expire_at %}
+                            {{ i.expire_at.strftime('%H:%M:%S') }}
+                            {% if i.expire_at < now %}<span class="tag tag-bad">已过期</span>{% endif %}
+                        {% else %}-{% endif %}
+                    </dd>
+                    {% if i.passenger_remark %}
+                        <dt>乘客备注</dt><dd>{{ i.passenger_remark }}</dd>
+                    {% endif %}
+                </dl>
+
+                <div class="form-actions">
+                    <div class="btn-row">
+                        <form class="inline-form" method="post"
+                              action="/driver/orders/{{ i.order_id }}/accept"
+                              data-confirm="确认接下这笔订单吗？接单后您将无法再接其他订单，直到本单结束。">
+                            <button class="btn btn-success" type="submit">接受订单</button>
+                        </form>
+                        <form class="inline-form" method="post"
+                              action="/driver/orders/{{ i.order_id }}/reject">
+                            <input type="hidden" name="reason" value="司机拒单">
+                            <button class="btn btn-ghost" type="submit">拒绝</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <div class="notice" style="font-size:12px;">
+            <b>接单的并发规则</b><br>
+            同一订单可能同时邀请多名司机。接单时数据库会执行：<br>
+            <code class="mono">UPDATE ride_order SET status='accepted', driver_id=? WHERE order_id=? AND status='pending'</code><br>
+            然后判断影响行数：<b>1 表示抢到了，0 表示已被别人接走</b>。
+            行锁会让并发事务自动排队，先提交者胜出。<br>
+            此外 <code class="mono">uk_active_driver</code> 唯一索引在数据库层保证
+            「一个司机同时最多一个进行中订单」。
+        </div>
+    </div>
+{% else %}
+    <div class="card">
+        {{ m.empty_block('暂无待接单的邀请',
+                         '保持在线，平台会按「区域 + 车型」把订单派给您。') }}
+    </div>
+{% endif %}
+{% endblock %}

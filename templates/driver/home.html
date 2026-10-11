@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}司机工作台 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3 class="card-title">
+        工作台
+        <span>
+            {{ m.online_badge(profile.online_status) }}
+            {{ m.audit_badge(profile.audit_status) }}
+        </span>
+    </h3>
+
+    <div class="btn-row">
+        {% if profile.online_status == 1 %}
+            <form class="inline-form" method="post" action="/driver/offline">
+                <button class="btn btn-ghost" type="submit">下线休息</button>
+            </form>
+            <span class="muted">当前在线，可接收平台派单。</span>
+        {% else %}
+            <form class="inline-form" method="post" action="/driver/online">
+                <button class="btn btn-success" type="submit">上线接单</button>
+            </form>
+            <span class="muted">
+                上线前提：资质已通过审核，且名下至少有一辆可运营车辆。
+            </span>
+        {% endif %}
+    </div>
+
+    {% if profile.audit_status != 1 %}
+        <div class="notice notice-warn" style="margin-top: 14px;">
+            您的资质尚未通过审核，无法上线接单。请联系平台管理员。
+        </div>
+    {% elif not (vehicles | selectattr('operate_status', 'equalto', 1) | list) %}
+        <div class="notice notice-warn" style="margin-top: 14px;">
+            您名下没有「可运营」的车辆，无法接单。
+            <a href="/driver/vehicles">前往车辆管理</a> 添加或启用车辆。
+        </div>
+    {% endif %}
+</div>
+
+<div class="grid grid-4" style="margin-bottom: 18px;">
+    <div class="stat">
+        <div class="stat-label">累计完成</div>
+        <div class="stat-value primary">{{ stats.completed }}</div>
+        <div class="stat-hint">单</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">累计营收</div>
+        <div class="stat-value success">￥{{ stats.revenue }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">服务分</div>
+        <div class="stat-value warning">{{ profile.service_score }}</div>
+        <div class="stat-hint">{{ profile.review_count }} 条评价</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">待应答邀请</div>
+        <div class="stat-value {% if pending_count %}danger{% endif %}">{{ pending_count }}</div>
+        <div class="stat-hint">条</div>
+    </div>
+</div>
+
+{% if active_order %}
+<div class="card">
+    <h3 class="card-title">
+        进行中的订单
+        <span>{{ m.status_badge(active_order.status, active_order.status_text) }}</span>
+    </h3>
+
+    <div class="grid grid-2">
+        <dl class="detail-list">
+            <dt>订单号</dt><dd class="mono">{{ active_order.order_no }}</dd>
+            <dt>乘客</dt><dd>{{ active_order.passenger_name }}</dd>
+            <dt>联系电话</dt><dd class="mono">{{ active_order.passenger_phone }}</dd>
+            <dt>上车点</dt><dd>{{ active_order.origin_address }}</dd>
+            <dt>下车点</dt><dd>{{ active_order.dest_address }}</dd>
+            {% if active_order.passenger_remark %}
+                <dt>备注</dt><dd>{{ active_order.passenger_remark }}</dd>
+            {% endif %}
+            <dt>车型</dt><dd>{{ active_order.car_type_name }}</dd>
+        </dl>
+
+        <div>
+            <div class="muted" style="font-size:12px; margin-bottom:8px;">行程推进</div>
+            <div class="btn-row" style="flex-direction: column; align-items: stretch;">
+
+                {% if active_order.status == 'accepted' %}
+                    <form method="post"
+                          action="/driver/orders/{{ active_order.order_id }}/arrive">
+                        <button class="btn btn-lg" type="submit" style="width:100%;">
+                            我已到达上车点
+                        </button>
+                    </form>
+                {% elif active_order.status == 'arrived' %}
+                    <form method="post"
+                          action="/driver/orders/{{ active_order.order_id }}/start">
+                        <button class="btn btn-lg btn-success" type="submit" style="width:100%;">
+                            乘客已上车，开始行程
+                        </button>
+                    </form>
+                {% elif active_order.status == 'in_progress' %}
+                    <form method="post"
+                          action="/driver/orders/{{ active_order.order_id }}/complete">
+                        <div class="form-grid">
+                            <div class="form-row">
+                                <label for="distance_km">行驶里程（km）</label>
+                                <input type="number" id="distance_km" name="distance_km"
+                                       step="0.001" min="0.1" data-positive
+                                       placeholder="如 12.5" required>
+                            </div>
+                            <div class="form-row">
+                                <label for="duration_min">行程时长（分钟）</label>
+                                <input type="number" id="duration_min" name="duration_min"
+                                       step="0.01" min="0.1" data-positive
+                                       placeholder="如 28" required>
+                            </div>
+                        </div>
+                        <button class="btn btn-lg btn-success" type="submit" style="width:100%;">
+                            结束行程并结算
+                        </button>
+                        <div class="hint muted" style="margin-top:6px;">
+                            车费由数据库函数 fn_calc_fare 按本单快照单价计算。
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+
+            <div style="margin-top:14px;">
+                <a class="btn btn-ghost btn-sm"
+                   href="/driver/orders/{{ active_order.order_id }}">查看订单详情</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <h3 class="card-title">
+        待应答的派单邀请
+        {% if invites %}<a class="toplink" href="/driver/pool">查看全部 →</a>{% endif %}
+    </h3>
+
+    {% if invites %}
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>订单号</th><th>上车点</th><th>下车点</th><th>车型</th>
+                    <th>乘客</th><th>第几轮</th><th>操作</th></tr>
+                </thead>
+                <tbody>
+                {% for i in invites %}
+                    <tr>
+                        <td class="mono">{{ i.order_no }}</td>
+                        <td class="wrap">{{ i.origin_address }}</td>
+                        <td class="wrap">{{ i.dest_address }}</td>
+                        <td>{{ i.car_type_name }}</td>
+                        <td>{{ i.passenger_name }}</td>
+                        <td>第 {{ i.batch_no }} 轮</td>
+                        <td>
+                            <form class="inline-form" method="post"
+                                  action="/driver/orders/{{ i.order_id }}/accept">
+                                <button class="btn btn-sm btn-success" type="submit">接单</button>
+                            </form>
+                            <form class="inline-form" method="post"
+                                  action="/driver/orders/{{ i.order_id }}/reject">
+                                <input type="hidden" name="reason" value="司机拒单">
+                                <button class="btn btn-sm btn-ghost" type="submit">拒单</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="notice" style="margin-top:12px; font-size:12px;">
+            多个司机可能同时收到同一订单的邀请。
+            <b>接单采用「条件更新 + 影响行数判定」的方式保证并发正确性</b> ——
+            只有第一个提交的事务能成功，其余会收到「订单已被其他司机接走」。
+        </div>
+    {% else %}
+        {{ m.empty_block('暂无待应答的派单邀请',
+                         '保持在线状态，平台会把符合条件的订单派给您。') }}
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 class="card-title">
+        最近行程
+        <a class="toplink" href="/driver/orders">查看全部 →</a>
+    </h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>订单号</th><th>状态</th><th>行程</th>
+                <th class="num">里程</th><th class="num">车费</th><th>时间</th><th></th></tr>
+            </thead>
+            <tbody>
+            {% for o in recent_orders %}
+                <tr>
+                    <td class="mono">{{ o.order_no }}</td>
+                    <td>{{ m.status_badge(o.status, o.status_text) }}</td>
+                    <td class="wrap">{{ o.origin_address }} → {{ o.dest_address }}</td>
+                    <td class="num">{{ o.distance_km or '-' }}</td>
+                    <td class="num">
+                        {% if o.fare_amount %}<span class="money">￥{{ o.fare_amount }}</span>
+                        {% else %}<span class="muted">-</span>{% endif %}
+                    </td>
+                    <td class="nowrap">{{ o.created_at.strftime('%m-%d %H:%M') }}</td>
+                    <td><a class="btn btn-sm btn-ghost"
+                           href="/driver/orders/{{ o.order_id }}">详情</a></td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(7, '还没有行程记录') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

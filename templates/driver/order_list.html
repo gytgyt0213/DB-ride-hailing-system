@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}我的行程 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">我的行程</h2>
+
+{% set tabs = [('', '全部'), ('accepted', '已接单'), ('arrived', '已到达'),
+               ('in_progress', '行程中'), ('completed', '已完成'), ('cancelled', '已取消')] %}
+<div class="tabs">
+    {% for value, label in tabs %}
+        <a href="/driver/orders{% if value %}?status={{ value }}{% endif %}"
+           class="{% if current_status == value %}active{% endif %}">
+            {{ label }}
+            <span class="count">{{ by_status.get(value, 0) if value else total }}</span>
+        </a>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="form-row inline" style="margin-bottom:14px;">
+        <label>快速筛选</label>
+        <input type="text" data-table-filter="driver-orders"
+               placeholder="输入订单号 / 地址 / 乘客名">
+    </div>
+
+    <div class="table-wrap">
+        <table class="data" id="driver-orders">
+            <thead>
+            <tr>
+                <th>订单号</th><th>状态</th><th>行程</th><th>乘客</th>
+                <th class="num">里程</th><th class="num">时长</th><th class="num">车费</th>
+                <th>时间</th><th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for o in orders %}
+                <tr>
+                    <td class="mono">{{ o.order_no }}</td>
+                    <td>{{ m.status_badge(o.status, o.status_text) }}</td>
+                    <td class="wrap">{{ o.origin_address }} → {{ o.dest_address }}</td>
+                    <td>{{ o.passenger_name }}</td>
+                    <td class="num">{{ o.distance_km or '-' }}</td>
+                    <td class="num">{{ o.duration_min or '-' }}</td>
+                    <td class="num">
+                        {% if o.fare_amount %}<span class="money">￥{{ o.fare_amount }}</span>
+                        {% else %}<span class="muted">-</span>{% endif %}
+                    </td>
+                    <td class="nowrap">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><a class="btn btn-sm btn-ghost"
+                           href="/driver/orders/{{ o.order_id }}">详情</a></td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(9, '该状态下暂无行程') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

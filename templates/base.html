@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="layout">
+
+    {% if user %}
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="
+                {%- if user.role_code == 'admin' %}/admin/
+                {%- elif user.role_code == 'driver' %}/driver/
+                {%- else %}/passenger/{% endif -%}">
+                🚕 {{ app_name }}
+            </a>
+
+            <nav class="nav">
+                {% if user.role_code == 'passenger' %}
+                    <a href="/passenger/">首页</a>
+                    <a href="/passenger/orders/new">立即叫车</a>
+                    <a href="/passenger/orders">我的订单</a>
+                    <a href="/passenger/addresses">常用地址</a>
+                {% elif user.role_code == 'driver' %}
+                    <a href="/driver/">工作台</a>
+                    <a href="/driver/pool">待接单</a>
+                    <a href="/driver/orders">我的行程</a>
+                    <a href="/driver/vehicles">我的车辆</a>
+                    <a href="/driver/reviews">我的评价</a>
+                {% elif user.role_code == 'admin' %}
+                    <a href="/admin/">总览</a>
+                    <a href="/admin/orders">订单监控</a>
+                    <a href="/admin/drivers">司机</a>
+                    <a href="/admin/vehicles">车辆</a>
+                    <a href="/admin/pricing">计价规则</a>
+                    <a href="/admin/passengers">乘客</a>
+                    <a href="/admin/stats">统计报表</a>
+                    <a href="/admin/regions">区域供需</a>
+                    <a href="/admin/licenses">证照提醒</a>
+                    <a href="/admin/reviews">评价</a>
+                    <a href="/admin/maintenance">维护</a>
+                {% endif %}
+            </nav>
+
+            <div class="userbox">
+                <span class="role-tag role-{{ user.role_code }}">
+                    {% if user.role_code == 'admin' %}管理员
+                    {% elif user.role_code == 'driver' %}司机
+                    {% else %}乘客{% endif %}
+                </span>
+                <span class="username">{{ user.real_name or user.username }}</span>
+                {% if user.role_code == 'driver' %}
+                    {% if user.online_status == 1 %}
+                        <span class="dot dot-on" title="在线"></span>
+                    {% else %}
+                        <span class="dot dot-off" title="离线"></span>
+                    {% endif %}
+                {% endif %}
+                <a class="link-quiet" href="/auth/password">改密码</a>
+                <a class="link-quiet" href="/auth/logout">退出</a>
+            </div>
+        </div>
+    </header>
+    {% endif %}
+
+    <main class="main">
+        {% if flash_message %}
+            <div class="flash flash-{{ flash_level }}">{{ flash_message }}</div>
+        {% endif %}
+        {% if error %}
+            <div class="flash flash-error">{{ error }}</div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <span>数据库课程大作业 · 网约车系统</span>
+        <span class="footer-sep">|</span>
+        <span>MySQL 8.4 + FastAPI + 手写 SQL</span>
+        <span class="footer-sep">|</span>
+        <a href="/health">健康检查</a>
+        <span class="footer-sep">|</span>
+        <a href="/docs">API 文档</a>
+    </footer>
+</div>
+
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

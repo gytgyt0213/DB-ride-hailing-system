@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}订单 {{ order.order_no }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+{# 进行中的订单自动刷新，让乘客看到状态流转 #}
+<div data-autorefresh="12000" data-status="{{ order.status }}"></div>
+
+<div class="card">
+    <h3 class="card-title">
+        订单 {{ order.order_no }}
+        <span>{{ m.status_badge(order.status, order.status_text) }}</span>
+    </h3>
+
+    <div class="btn-row">
+        {% if order.status in ['pending', 'accepted', 'arrived'] %}
+            <form class="inline-form" method="post"
+                  action="/passenger/orders/{{ order.order_id }}/cancel"
+                  data-confirm="确定要取消这笔订单吗？">
+                <input type="hidden" name="reason" value="乘客取消">
+                <button class="btn btn-danger btn-sm" type="submit">取消订单</button>
+            </form>
+        {% endif %}
+
+        {% if track_summary and track_summary.point_count %}
+            <a class="btn btn-ghost btn-sm"
+               href="/passenger/orders/{{ order.order_id }}/track">查看行程轨迹</a>
+        {% endif %}
+
+        {% if can_review %}
+            <a class="btn btn-success btn-sm"
+               href="/passenger/orders/{{ order.order_id }}/review">评价这次行程</a>
+        {% elif review %}
+            <span class="tag tag-ok">已评价 {{ review.score }} 分</span>
+        {% endif %}
+
+        <a class="btn btn-ghost btn-sm" href="/passenger/orders">返回列表</a>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">行程信息</h3>
+        <dl class="detail-list">
+            <dt>上车点</dt><dd>{{ order.origin_address }}</dd>
+            <dt>上车区域</dt><dd>{{ order.origin_region }}</dd>
+            <dt>下车点</dt><dd>{{ order.dest_address }}</dd>
+            <dt>车型</dt><dd>{{ order.car_type_name }}</dd>
+            {% if order.passenger_remark %}
+                <dt>备注</dt><dd>{{ order.passenger_remark }}</dd>
+            {% endif %}
+            <dt>下单时间</dt><dd>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+            {% if order.cancelled_at %}
+                <dt>取消时间</dt><dd>{{ order.cancelled_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                <dt>取消原因</dt><dd>{{ order.cancel_reason or '-' }}
+                    <span class="muted">
+                        （{% if order.cancelled_by == 'passenger' %}乘客
+                        {%- elif order.cancelled_by == 'driver' %}司机
+                        {%- elif order.cancelled_by == 'admin' %}管理员
+                        {%- else %}系统{% endif %}发起）
+                    </span>
+                </dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">司机与车辆</h3>
+        {% if order.driver_name %}
+            <dl class="detail-list">
+                <dt>司机</dt><dd>{{ order.driver_name }}
+                    {% if order.driver_service_score %}
+                        <span class="tag tag-ok">服务分 {{ order.driver_service_score }}</span>
+                    {% endif %}
+                </dd>
+                <dt>联系电话</dt><dd class="mono">{{ order.driver_phone or '-' }}</dd>
+                <dt>车牌号</dt><dd class="mono">{{ order.plate_no or '-' }}</dd>
+                <dt>车辆</dt><dd>{{ order.brand or '' }} {{ order.model or '' }}
+                    {{ order.color or '' }}</dd>
+            </dl>
+        {% else %}
+            <div class="notice">
+                尚未有司机接单。系统正在按「{{ order.origin_region }} + {{ order.car_type_name }}」
+                匹配可接单司机，请稍候。
+            </div>
+            {% if dispatches %}
+                <div style="margin-top:14px;">
+                    <div class="muted" style="font-size:12px; margin-bottom:8px;">
+                        已向 {{ dispatches | length }} 名司机发出邀请：
+                    </div>
+                    <div class="table-wrap">
+                        <table class="data">
+                            <thead><tr><th>司机</th><th>第几轮</th><th>邀请状态</th><th>邀请时间</th></tr></thead>
+                            <tbody>
+                            {% for d in dispatches %}
+                                <tr>
+                                    <td>{{ d.driver_name }}</td>
+                                    <td>第 {{ d.batch_no }} 轮</td>
+                                    <td>{{ m.invite_badge(d.status) }}</td>
+                                    <td class="nowrap">{{ d.invited_at.strftime('%m-%d %H:%M:%S') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">状态流转时间线</h3>
+        {{ m.timeline(logs, order.status) }}
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">费用明细</h3>
+
+        {% if order.fare_amount %}
+            <div style="font-size: 30px; font-weight: 700; color: var(--danger); margin-bottom: 4px;">
+                ￥{{ order.fare_amount }}
+            </div>
+            <div class="muted" style="font-size:12px; margin-bottom:16px;">最终车费</div>
+        {% elif order.est_fare %}
+            <div style="font-size: 26px; font-weight: 700; color: var(--text-dim); margin-bottom: 4px;">
+                ￥{{ order.est_fare }}
+            </div>
+            <div class="muted" style="font-size:12px; margin-bottom:16px;">预估车费（以行程结束后结算为准）</div>
+        {% else %}
+            <div class="muted" style="margin-bottom:16px;">行程结束后自动结算</div>
+        {% endif %}
+
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>项目</th><th class="num">数值</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>起步价</td><td class="num">￥{{ order.snap_base_price or '-' }}</td></tr>
+                    <tr><td>起步含里程</td><td class="num">{{ order.snap_base_distance_km or '-' }} km</td></tr>
+                    <tr><td>里程单价</td><td class="num">￥{{ order.snap_per_km_price or '-' }}/km</td></tr>
+                    <tr><td>时长单价</td><td class="num">￥{{ order.snap_per_min_price or '-' }}/min</td></tr>
+                    <tr><td>最低消费</td><td class="num">￥{{ order.snap_min_price or '-' }}</td></tr>
+                    <tr><td>实际里程</td><td class="num">{{ order.distance_km or '-' }} km</td></tr>
+                    <tr><td>实际时长</td><td class="num">{{ order.duration_min or '-' }} min</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="notice" style="margin-top:14px; font-size:12px;">
+            以上单价来自 <b>下单时刻的价格快照</b>（规则版本 v{{ order.rule_version }}）。
+            平台后续调整计价规则不会影响本订单金额。
+        </div>
+
+        {% if duration and duration.t_completed %}
+            <h4 style="margin: 18px 0 8px; font-size: 13px;">各阶段耗时</h4>
+            <dl class="detail-list">
+                <dt>等待接单</dt><dd>{{ m.dur(duration.wait_accept_sec) }}</dd>
+                <dt>司机接驾</dt><dd>{{ m.dur(duration.pickup_sec) }}</dd>
+                <dt>行程耗时</dt><dd>{{ m.dur(duration.trip_sec) }}</dd>
+                <dt>合计</dt><dd>{{ m.dur(duration.total_sec) }}</dd>
+            </dl>
+        {% endif %}
+    </div>
+</div>
+
+{% if review %}
+<div class="card">
+    <h3 class="card-title">我的评价</h3>
+    <div style="font-size: 20px; color: #f59e0b; margin-bottom: 8px;">
+        {{ '★' * review.score }}{{ '☆' * (5 - review.score) }}
+    </div>
+    <p>{{ review.content or '（未填写文字评价）' }}</p>
+    {% if review.tags %}
+        <div>{% for t in review.tags.split(',') %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}订单 {{ order.order_no }} - 管理端{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3 class="card-title">
+        订单 {{ order.order_no }}
+        <span>{{ m.status_badge(order.status, order.status_text) }}</span>
+    </h3>
+
+    <div class="btn-row">
+        {% if order.status == 'pending' %}
+            <form class="inline-form" method="post"
+                  action="/admin/orders/{{ order.order_id }}/dispatch">
+                <input type="hidden" name="batch_size" value="3">
+                <button class="btn btn-sm" type="submit">再次派单</button>
+            </form>
+        {% endif %}
+
+        {% if order.status in ['pending', 'accepted', 'arrived'] %}
+            <form class="inline-form" method="post"
+                  action="/admin/orders/{{ order.order_id }}/cancel"
+                  data-confirm="管理员取消订单会通知双方，确定吗？">
+                <input type="hidden" name="reason" value="管理员取消">
+                <button class="btn btn-sm btn-danger" type="submit">强制取消</button>
+            </form>
+        {% endif %}
+
+        <a class="btn btn-ghost btn-sm" href="/admin/orders">返回列表</a>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">订单信息</h3>
+        <dl class="detail-list">
+            <dt>订单号</dt><dd class="mono">{{ order.order_no }}</dd>
+            <dt>订单ID</dt><dd class="mono">#{{ order.order_id }}</dd>
+            <dt>乘客</dt><dd>{{ order.passenger_name }} · <span class="mono">{{ order.passenger_phone }}</span></dd>
+            <dt>司机</dt><dd>{{ order.driver_name or '未接单' }}
+                {% if order.driver_phone %}· <span class="mono">{{ order.driver_phone }}</span>{% endif %}</dd>
+            <dt>车辆</dt><dd class="mono">{{ order.plate_no or '-' }}
+                {{ order.brand or '' }} {{ order.model or '' }}</dd>
+            <dt>车型</dt><dd>{{ order.car_type_name }}</dd>
+            <dt>上车点</dt><dd>{{ order.origin_address }}（{{ order.origin_region }}）</dd>
+            <dt>下车点</dt><dd>{{ order.dest_address }}</dd>
+            {% if order.passenger_remark %}
+                <dt>备注</dt><dd>{{ order.passenger_remark }}</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">时间与费用</h3>
+        <dl class="detail-list">
+            <dt>下单</dt><dd>{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+            <dt>接单</dt><dd>{{ order.accepted_at.strftime('%Y-%m-%d %H:%M:%S') if order.accepted_at else '-' }}</dd>
+            <dt>到达</dt><dd>{{ order.arrived_at.strftime('%Y-%m-%d %H:%M:%S') if order.arrived_at else '-' }}</dd>
+            <dt>开始</dt><dd>{{ order.started_at.strftime('%Y-%m-%d %H:%M:%S') if order.started_at else '-' }}</dd>
+            <dt>完成</dt><dd>{{ order.completed_at.strftime('%Y-%m-%d %H:%M:%S') if order.completed_at else '-' }}</dd>
+            {% if order.cancelled_at %}
+                <dt>取消</dt><dd>{{ order.cancelled_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                    · {{ order.cancel_reason or '-' }}（{{ order.cancelled_by }}）</dd>
+            {% endif %}
+            <dt>里程/时长</dt><dd>{{ order.distance_km or '-' }} km / {{ order.duration_min or '-' }} min</dd>
+            <dt>预估车费</dt><dd>￥{{ order.est_fare or '-' }}</dd>
+            <dt>结算车费</dt>
+            <dd>{% if order.fare_amount %}<span class="money" style="font-size:18px;">￥{{ order.fare_amount }}</span>
+                {% else %}-{% endif %}</dd>
+        </dl>
+
+        {% if duration and duration.t_completed %}
+            <h4 style="margin: 16px 0 8px; font-size: 13px;">各阶段耗时</h4>
+            <dl class="detail-list">
+                <dt>等待接单</dt><dd>{{ m.dur(duration.wait_accept_sec) }}</dd>
+                <dt>司机接驾</dt><dd>{{ m.dur(duration.pickup_sec) }}</dd>
+                <dt>行程耗时</dt><dd>{{ m.dur(duration.trip_sec) }}</dd>
+                <dt>全流程</dt><dd>{{ m.dur(duration.total_sec) }}</dd>
+            </dl>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">状态流转时间线</h3>
+        {{ m.timeline(logs, order.status) }}
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">计价快照（下单时刻固化）</h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>项目</th><th class="num">数值</th></tr></thead>
+                <tbody>
+                    <tr><td>规则ID / 版本</td>
+                        <td class="num mono">#{{ order.pricing_rule_id }} / v{{ order.rule_version }}</td></tr>
+                    <tr><td>起步价</td><td class="num">￥{{ order.snap_base_price }}</td></tr>
+                    <tr><td>起步含里程</td><td class="num">{{ order.snap_base_distance_km }} km</td></tr>
+                    <tr><td>里程单价</td><td class="num">￥{{ order.snap_per_km_price }}/km</td></tr>
+                    <tr><td>时长单价</td><td class="num">￥{{ order.snap_per_min_price }}/min</td></tr>
+                    <tr><td>最低消费</td><td class="num">￥{{ order.snap_min_price }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="notice" style="margin-top:12px; font-size:12px;">
+            本单金额只依赖以上快照列。平台后续发布新的计价规则版本，
+            不会改变此订单的车费 —— 这正是「价格快照」设计的目的。
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">
+        派单记录
+        <span class="sub">共 {{ dispatches | length }} 条</span>
+    </h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>#</th><th>司机</th><th>服务分</th><th>轮次</th>
+                <th>邀请状态</th><th>邀请时间</th><th>应答时间</th><th>备注</th></tr>
+            </thead>
+            <tbody>
+            {% for d in dispatches %}
+                <tr>
+                    <td class="mono">#{{ d.dispatch_id }}</td>
+                    <td>{{ d.driver_name }}<br><span class="muted mono">{{ d.driver_phone }}</span></td>
+                    <td>{{ d.service_score }}</td>
+                    <td>第 {{ d.batch_no }} 轮</td>
+                    <td>{{ m.invite_badge(d.status) }}</td>
+                    <td class="nowrap">{{ d.invited_at.strftime('%m-%d %H:%M:%S') }}</td>
+                    <td class="nowrap">
+                        {{ d.responded_at.strftime('%m-%d %H:%M:%S') if d.responded_at else '-' }}
+                    </td>
+                    <td>{{ d.remark or '-' }}</td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(8, '该订单还没有派单记录') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="notice" style="margin-top:12px; font-size:12px;">
+        「拒单」不会改变订单状态（订单仍是待接单），只是把这条邀请标记为 rejected ——
+        这正是需要独立 <code class="mono">order_dispatch</code> 表的原因。
+    </div>
+</div>
+
+{% if review %}
+<div class="card">
+    <h3 class="card-title">乘客评价</h3>
+    <div style="font-size: 20px; color: #f59e0b; margin-bottom: 8px;">
+        {{ '★' * review.score }}{{ '☆' * (5 - review.score) }}
+    </div>
+    <p>{{ review.content or '（未填写文字评价）' }}</p>
+    {% if review.tags %}
+        <div>{% for t in review.tags.split(',') %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if track_summary and track_summary.point_count %}
+<div class="card">
+    <h3 class="card-title">轨迹概况</h3>
+    <div class="grid grid-4">
+        <div class="stat" style="box-shadow:none;">
+            <div class="stat-label">轨迹点</div>
+            <div class="stat-value sm">{{ track_summary.point_count }}</div>
+        </div>
+        <div class="stat" style="box-shadow:none;">
+            <div class="stat-label">最高车速</div>
+            <div class="stat-value sm">{{ track_summary.max_speed }} km/h</div>
+        </div>
+        <div class="stat" style="box-shadow:none;">
+            <div class="stat-label">平均车速</div>
+            <div class="stat-value sm">{{ track_summary.avg_speed }} km/h</div>
+        </div>
+        <div class="stat" style="box-shadow:none;">
+            <div class="stat-label">采样区间</div>
+            <div class="stat-value sm" style="font-size:13px;">
+                {{ track_summary.first_at.strftime('%m-%d %H:%M') }}
+                ~ {{ track_summary.last_at.strftime('%H:%M') }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

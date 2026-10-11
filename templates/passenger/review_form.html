@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}评价行程 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">评价这次行程</h2>
+<p class="muted">订单 {{ order.order_no }} · {{ order.driver_name }} 司机</p>
+
+<form method="post" action="/passenger/orders/{{ order.order_id }}/review">
+    <div class="grid grid-2">
+        <div class="card">
+            <h3 class="card-title">评分</h3>
+            <div class="radio-group" style="flex-direction: column; gap: 10px;">
+                {% for s in [5, 4, 3, 2, 1] %}
+                    <label style="font-size: 15px;">
+                        <input type="radio" name="score" value="{{ s }}"
+                               {% if s == 5 %}checked{% endif %}>
+                        <span style="color:#f59e0b; font-size: 17px;">
+                            {{ '★' * s }}{{ '☆' * (5 - s) }}
+                        </span>
+                        <span class="muted" style="font-size: 13px;">
+                            {% if s == 5 %}非常满意
+                            {% elif s == 4 %}满意
+                            {% elif s == 3 %}一般
+                            {% elif s == 2 %}不满意
+                            {% else %}很不满意{% endif %}
+                        </span>
+                    </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="card-title">标签 <span class="sub">可多选</span></h3>
+            <div class="radio-group">
+                {% for t in ['准时', '车内整洁', '态度好', '驾驶平稳', '路线合理',
+                             '主动帮忙', '空调舒适', '沟通顺畅'] %}
+                    <label><input type="checkbox" name="tags" value="{{ t }}"> {{ t }}</label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">评价内容</h3>
+        <div class="form-row">
+            <textarea name="content" maxlength="500" style="min-height: 110px;"
+                      placeholder="说说这次行程的体验吧（选填，最多 500 字）"></textarea>
+        </div>
+
+        <div class="notice" style="margin-top: 6px; font-size: 12px;">
+            提交后，数据库触发器 <code class="mono">trg_review_after_insert</code>
+            会自动更新该司机的服务分与评价数。
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-success" type="submit">提交评价</button>
+            <a class="btn btn-ghost" href="/passenger/orders/{{ order.order_id }}">返回订单</a>
+        </div>
+    </div>
+</form>
+{% endblock %}

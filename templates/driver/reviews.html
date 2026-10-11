@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}我的评价 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">我的评价</h2>
+
+<div class="grid grid-4" style="margin-bottom:18px;">
+    <div class="stat">
+        <div class="stat-label">服务分</div>
+        <div class="stat-value warning">{{ profile.service_score }}</div>
+        <div class="stat-hint">满分 5.00</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">评价总数</div>
+        <div class="stat-value primary">{{ profile.review_count }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">好评（4-5 分）</div>
+        <div class="stat-value success">
+            {{ reviews | selectattr('score', 'ge', 4) | list | length }}
+        </div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">差评（1-2 分）</div>
+        <div class="stat-value danger">
+            {{ reviews | selectattr('score', 'le', 2) | list | length }}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">
+        评价明细
+        <span class="sub">最近 {{ reviews | length }} 条</span>
+    </h3>
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>订单号</th><th>乘客</th><th>评分</th><th>评价内容</th>
+                <th>标签</th><th>时间</th></tr>
+            </thead>
+            <tbody>
+            {% for r in reviews %}
+                <tr>
+                    <td class="mono">{{ r.order_no }}</td>
+                    <td>{{ r.passenger_name }}</td>
+                    <td style="color:#f59e0b; white-space:nowrap;">
+                        {{ '★' * r.score }}{{ '☆' * (5 - r.score) }}
+                    </td>
+                    <td class="wrap">{{ r.content or '-' }}</td>
+                    <td class="wrap">
+                        {% if r.tags %}
+                            {% for t in r.tags.split(',') %}<span class="tag">{{ t }}</span>{% endfor %}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="nowrap">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(6, '还没有收到评价') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="notice" style="margin-top:14px; font-size:12px;">
+        服务分由数据库触发器 <code class="mono">trg_review_after_insert</code>
+        在每次新增评价时自动维护（增量公式，无需全表重算）。
+        管理员端可以用视图 <code class="mono">v_driver_service_score</code>
+        对比「触发器维护值」与「实时聚合值」来校验一致性。
+    </div>
+</div>
+{% endblock %}

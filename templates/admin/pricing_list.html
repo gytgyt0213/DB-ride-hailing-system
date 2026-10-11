@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}计价规则 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">计价规则管理</h2>
+<p class="muted">
+    规则按车型<b>版本化</b>：改价时不会修改已生效的行，而是新增一个版本并关闭旧版本。
+    历史订单已把当时的规则价格<b>快照</b>写在订单上，因此不受任何改价影响。
+</p>
+
+<div class="card">
+    <h3 class="card-title">当前生效的规则</h3>
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+            <tr><th>车型</th><th>规则名</th><th>版本</th>
+                <th class="num">起步价</th><th class="num">起步含里程</th>
+                <th class="num">里程单价</th><th class="num">时长单价</th>
+                <th class="num">最低消费</th><th>生效时间</th></tr>
+            </thead>
+            <tbody>
+            {% for r in current %}
+                <tr>
+                    <td>{{ r.type_name }}</td>
+                    <td>{{ r.rule_name }}</td>
+                    <td><span class="tag">v{{ r.version }}</span></td>
+                    <td class="num">￥{{ r.base_price }}</td>
+                    <td class="num">{{ r.base_distance_km }} km</td>
+                    <td class="num">￥{{ r.per_km_price }}/km</td>
+                    <td class="num">￥{{ r.per_min_price }}/min</td>
+                    <td class="num">￥{{ r.min_price }}</td>
+                    <td class="nowrap">{{ r.effective_from.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+            {% else %}
+                {{ m.empty_row(9, '没有生效中的计价规则，请在下侧新增') }}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">
+            发布新版本
+            <span class="sub">会同时关闭该车型的旧版本</span>
+        </h3>
+        <form method="post" action="/admin/pricing/new">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="car_type_id">车型</label>
+                    <select id="car_type_id" name="car_type_id" required>
+                        {% for ct in car_types %}
+                            <option value="{{ ct.car_type_id }}">{{ ct.type_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label for="rule_name">规则名称</label>
+                    <input type="text" id="rule_name" name="rule_name"
+                           maxlength="50" placeholder="如 经济型-2027调价版">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="base_price">起步价（元）</label>
+                    <input type="number" id="base_price" name="base_price"
+                           step="0.01" min="0" required>
+                </div>
+                <div class="form-row">
+                    <label for="base_distance_km">起步含里程（km）</label>
+                    <input type="number" id="base_distance_km" name="base_distance_km"
+                           step="0.01" min="0" value="3">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="per_km_price">里程单价（元/km）</label>
+                    <input type="number" id="per_km_price" name="per_km_price"
+                           step="0.01" min="0" required>
+                </div>
+                <div class="form-row">
+                    <label for="per_min_price">时长单价（元/min）</label>
+                    <input type="number" id="per_min_price" name="per_min_price"
+                           step="0.01" min="0" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label for="min_price">最低消费（元）</label>
+                <input type="number" id="min_price" name="min_price"
+                       step="0.01" min="0" value="0">
+            </div>
+
+            <div class="notice" style="font-size:12px; margin-bottom:14px;">
+                提交后数据库会在<b>同一个事务</b>内完成两步：
+                ① 把该车型当前有效旧规则的 <code class="mono">effective_to</code>
+                设为新版本生效时刻并置 <code class="mono">status=0</code>；
+                ② 插入 <code class="mono">version+1</code> 的新行。<br>
+                已生效的单价列永远不会被 UPDATE，历史可完整追溯。
+            </div>
+
+            <div class="form-actions" style="border:0; padding:0;">
+                <button class="btn" type="submit">发布新版本</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">
+            全部版本
+            <span class="sub">含历史规则，用于追溯</span>
+        </h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>车型</th><th>版本</th><th class="num">起步价</th>
+                    <th class="num">里程</th><th class="num">时长</th>
+                    <th>生效期</th><th>状态</th><th class="num">被引用</th><th></th></tr>
+                </thead>
+                <tbody>
+                {% for r in all_rules %}
+                    <tr>
+                        <td>{{ r.type_name }}</td>
+                        <td>v{{ r.version }}</td>
+                        <td class="num">￥{{ r.base_price }}</td>
+                        <td class="num">￥{{ r.per_km_price }}</td>
+                        <td class="num">￥{{ r.per_min_price }}</td>
+                        <td class="nowrap" style="font-size:12px;">
+                            {{ r.effective_from.strftime('%Y-%m-%d') }}
+                            ~
+                            {{ r.effective_to.strftime('%Y-%m-%d') if r.effective_to else '至今' }}
+                        </td>
+                        <td>
+                            {% if r.is_current == 1 %}
+                                <span class="badge badge-completed">生效中</span>
+                            {% elif r.status == 1 %}
+                                <span class="badge badge-pending">未生效</span>
+                            {% else %}
+                                <span class="badge badge-cancelled">已停用</span>
+                            {% endif %}
+                        </td>
+                        <td class="num">{{ r.order_count }}</td>
+                        <td>
+                            {% if r.is_current != 1 %}
+                                <form class="inline-form" method="post"
+                                      action="/admin/pricing/{{ r.rule_id }}/toggle">
+                                    <input type="hidden" name="status"
+                                           value="{{ 0 if r.status == 1 else 1 }}">
+                                    <button class="btn btn-sm btn-ghost" type="submit">
+                                        {{ '停用' if r.status == 1 else '启用' }}
+                                    </button>
+                                </form>
+                            {% else %}
+                                <span class="muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    {{ m.empty_row(9) }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

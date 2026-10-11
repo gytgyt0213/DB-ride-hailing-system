@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% import "partials/macros.html" as m %}
+{% block title %}司机管理 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">司机管理</h2>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">
+            司机列表
+            <span class="sub">
+                共 {{ drivers | length }} 人
+                {% if pending_count %}· <span class="tag tag-warn">{{ pending_count }} 人待审核</span>{% endif %}
+            </span>
+        </h3>
+
+        <form class="filters" method="get" action="/admin/drivers">
+            <div class="form-row">
+                <label>关键词</label>
+                <input type="text" name="keyword" value="{{ keyword }}"
+                       placeholder="姓名 / 手机 / 用户名">
+            </div>
+            <div class="form-row">
+                <label>审核状态</label>
+                <select name="audit_status">
+                    <option value="">全部</option>
+                    <option value="0" {% if audit_status == '0' %}selected{% endif %}>待审核</option>
+                    <option value="1" {% if audit_status == '1' %}selected{% endif %}>已通过</option>
+                    <option value="2" {% if audit_status == '2' %}selected{% endif %}>已驳回</option>
+                </select>
+            </div>
+            <button class="btn" type="submit">查询</button>
+            <a class="btn btn-ghost" href="/admin/drivers">重置</a>
+        </form>
+
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                <tr><th>ID</th><th>司机</th><th>用户名</th><th>区域</th>
+                    <th>在线</th><th>审核</th><th>服务分</th><th>车辆</th>
+                    <th class="num">完成单</th><th>驾驶证到期</th><th>账号</th><th>操作</th></tr>
+                </thead>
+                <tbody>
+                {% for d in drivers %}
+                    <tr>
+                        <td class="mono">#{{ d.driver_id }}</td>
+                        <td>{{ d.real_name }}<br><span class="muted mono">{{ d.phone }}</span></td>
+                        <td class="mono">{{ d.username }}</td>
+                        <td>{{ d.region }}</td>
+                        <td>{{ m.online_badge(d.online_status) }}</td>
+                        <td>{{ m.audit_badge(d.audit_status) }}</td>
+                        <td>{{ d.service_score }}
+                            <span class="muted">({{ d.review_count }})</span></td>
+                        <td>
+                            {{ d.available_vehicle_count }} / {{ d.vehicle_count }}
+                            {% if d.available_vehicle_count == 0 %}
+                                <span class="tag tag-bad">无可运营</span>
+                            {% endif %}
+                        </td>
+                        <td class="num">{{ d.completed_orders }}</td>
+                        <td class="nowrap">
+                            {% if d.license_expire_date %}
+                                {{ d.license_expire_date }}
+                                {% if d.license_expire_date < now.date() %}
+                                    <span class="tag tag-bad">过期</span>
+                                {% endif %}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if d.account_status == 1 %}
+                                <span class="badge badge-completed">正常</span>
+                            {% else %}
+                                <span class="badge badge-cancelled">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td class="nowrap">
+                            {% if d.audit_status != 1 %}
+                                <form class="inline-form" method="post"
+                                      action="/admin/drivers/{{ d.driver_id }}/audit">
+                                    <input type="hidden" name="audit_status" value="1">
+                                    <button class="btn btn-sm btn-success" type="submit">通过</button>
+                                </form>
+                            {% endif %}
+                            {% if d.audit_status != 2 %}
+                                <form class="inline-form" method="post"
+                                      action="/admin/drivers/{{ d.driver_id }}/audit"
+                                      data-confirm="驳回后该司机将被强制下线，确定吗？">
+                                    <input type="hidden" name="audit_status" value="2">
+                                    <button class="btn btn-sm btn-ghost" type="submit">驳回</button>
+                                </form>
+                            {% endif %}
+                            <form class="inline-form" method="post"
+                                  action="/admin/drivers/{{ d.driver_id }}/status">
+                                {% if d.status == 1 %}
+                                    <input type="hidden" name="status" value="0">
+                                    <button class="btn btn-sm btn-danger" type="submit"
+                                            data-confirm="确定停用该司机账号吗？">停用</button>
+                                {% else %}
+                                    <input type="hidden" name="status" value="1">
+                                    <button class="btn btn-sm btn-ghost" type="submit">启用</button>
+                                {% endif %}
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    {{ m.empty_row(12, '没有符合条件的司机') }}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">新建司机账号</h3>
+        <form method="post" action="/admin/drivers/new">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="username">登录用户名</label>
+                    <input type="text" id="username" name="username"
+                           pattern="[A-Za-z0-9_]{3,20}" required
+                           placeholder="3~20 位字母数字下划线">
+                </div>
+                <div class="form-row">
+                    <label for="password">初始密码</label>
+                    <input type="text" id="password" name="password"
+                           minlength="6" required placeholder="至少 6 位">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="real_name">姓名</label>
+                    <input type="text" id="real_name" name="real_name" maxlength="50" required>
+                </div>
+                <div class="form-row">
+                    <label for="phone">手机号</label>
+                    <input type="tel" id="phone" name="phone"
+                           pattern="1[3-9][0-9]{9}" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label for="region">所在区域 <span class="muted">（决定派单匹配范围）</span></label>
+                <select id="region" name="region">
+                    {% for r in regions %}
+                        <option value="{{ r }}">{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="id_card_no">身份证号</label>
+                    <input type="text" id="id_card_no" name="id_card_no" maxlength="18">
+                </div>
+                <div class="form-row">
+                    <label for="driver_license_no">驾驶证号</label>
+                    <input type="text" id="driver_license_no" name="driver_license_no" maxlength="30">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="license_expire_date">驾驶证到期日</label>
+                    <input type="date" id="license_expire_date" name="license_expire_date">
+                </div>
+                <div class="form-row">
+                    <label for="audit_status">审核状态</label>
+                    <select id="audit_status" name="audit_status">
+                        <option value="1">直接通过</option>
+                        <option value="0">待审核</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="notice" style="font-size:12px; margin-bottom:14px;">
+                司机账号创建后，还需在「车辆管理」中为其登记至少一辆
+                <b>可运营</b>车辆，该司机才能上线接单。
+            </div>
+
+            <div class="form-actions" style="border:0; padding:0;">
+                <button class="btn" type="submit">创建司机账号</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

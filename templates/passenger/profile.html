@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}个人资料 - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2 class="mt-0">个人资料</h2>
+
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="card-title">账号信息</h3>
+        <dl class="detail-list">
+            <dt>用户名</dt><dd class="mono">{{ user.username }}</dd>
+            <dt>角色</dt><dd><span class="role-tag role-passenger">乘客</span></dd>
+            <dt>姓名</dt><dd>{{ user.real_name }}</dd>
+            <dt>手机号</dt><dd class="mono">{{ user.phone }}</dd>
+            <dt>常驻区域</dt><dd>{{ user.home_region or '-' }}</dd>
+            <dt>乘客编号</dt><dd class="mono">#{{ user.profile_id }}</dd>
+            <dt>账号编号</dt><dd class="mono">#{{ user.account_id }}</dd>
+        </dl>
+
+        <div class="form-actions">
+            <a class="btn btn-ghost" href="/auth/password">修改密码</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 class="card-title">账户说明</h3>
+        <div class="notice" style="font-size: 13px; line-height: 1.9;">
+            乘客账号由 <code class="mono">account</code> 与
+            <code class="mono">passenger</code> 两张表构成，两者是
+            <b>1:1 的泛化/特化关系</b>：<br>
+            · <code class="mono">account</code> 保存登录凭证
+            （用户名、密码哈希、盐、迭代次数、角色），三种角色共用；<br>
+            · <code class="mono">passenger</code> 保存乘客特有属性
+            （姓名、手机、性别、常驻区域），通过唯一的
+            <code class="mono">account_id</code> 外键关联。<br>
+            这样设计的好处是登录逻辑只需查一张表，
+            而各角色的属性又能各自独立扩展。
+        </div>
+    </div>
+</div>
+{% endblock %}

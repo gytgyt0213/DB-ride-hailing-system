@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+    <div class="auth-card" style="text-align:center;">
+        <div style="font-size: 56px; font-weight: 700; color: #cbd5e1; line-height: 1;">
+            {{ code }}
+        </div>
+        <h1 class="auth-title" style="margin-top: 16px;">{{ message }}</h1>
+        <p class="auth-sub">{{ detail }}</p>
+
+        <div class="btn-row" style="justify-content:center; margin-top: 8px;">
+            {% if user %}
+                {% if user.role_code == 'admin' %}
+                    <a class="btn" href="/admin/">返回管理端首页</a>
+                {% elif user.role_code == 'driver' %}
+                    <a class="btn" href="/driver/">返回司机工作台</a>
+                {% else %}
+                    <a class="btn" href="/passenger/">返回乘客首页</a>
+                {% endif %}
+            {% else %}
+                <a class="btn" href="/auth/login">去登录</a>
+            {% endif %}
+            <a class="btn btn-ghost" href="/health">检查服务状态</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
